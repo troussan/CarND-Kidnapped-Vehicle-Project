@@ -40,6 +40,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 		sample_x = dist_x(gen);
 		sample_y = dist_y(gen);
 		sample_theta = dist_theta(gen);
+    sample_theta -= trunc(sample_theta / TWO_PI) * TWO_PI;
 
     Particle p;
     p.id = i;
@@ -60,16 +61,16 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
   default_random_engine gen;
 
-  for (auto &p: particles) {
-    normal_distribution<double> dist_x(0.0, std_pos[0]);
-    normal_distribution<double> dist_y(0.0, std_pos[1]);
-    normal_distribution<double> dist_theta(0.0, std_pos[2]);
+  normal_distribution<double> dist_x(0.0, std_pos[0]);
+  normal_distribution<double> dist_y(0.0, std_pos[1]);
+  normal_distribution<double> dist_theta(0.0, std_pos[2]);
 
+  for (auto &p: particles) {
     if (fabs(yaw_rate) > 0.0001) {
+      double v_over_yr = velocity / yaw_rate;
       double theta = p.theta + yaw_rate * delta_t;
-      theta -= trunc(theta / TWO_PI) * TWO_PI;
-      p.x += velocity * (sin(theta) - sin(p.theta)) / yaw_rate;
-      p.y += velocity * (cos(p.theta) - cos(theta)) / yaw_rate;
+      p.x += v_over_yr * (sin(theta) - sin(p.theta));
+      p.y += v_over_yr * (cos(p.theta) - cos(theta));
       p.theta = theta;
     } else {
       p.x += velocity * cos(p.theta) * delta_t;
@@ -119,6 +120,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   double sigma_2_x = 2.0 * std_landmark[0] * std_landmark[0];
   double sigma_2_y = 2.0 * std_landmark[1] * std_landmark[1];
 
+  weights.clear();
   for (auto &p: particles) {
     std::vector<LandmarkObs> observations_map;
 
@@ -148,34 +150,34 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     std::vector<int> assoc;
     std::vector<double> x_sense;
     std::vector<double> y_sense;
-
     double weight = 1.0;
     for (auto &o : observations_map) {
+      bool found = false;
       assoc.push_back(o.id);
       x_sense.push_back(o.x);
       y_sense.push_back(o.y);
-      double mx, my;
       for (auto &pr : predicted) {
         if (o.id == pr.id) {
-          mx = pr.x;
-          my = pr.y;
+          weight *= weight_mult * exp(-(pow(o.x - pr.x, 2)/sigma_2_x + pow(o.y - pr.y,2)/sigma_2_y));
+          found = true;
           break;
         }
       }
-      weight *= weight_mult * exp(-(pow(o.x - mx, 2)/sigma_2_x + pow(o.y - my,2)/sigma_2_y));
+      if (!found) {
+        weight *= 1.0E-45;
+      }
     }
-    p.weight = weight;
+    p.weight =  weight;
+
+    weights.push_back(weight);
     p = SetAssociations(p, assoc, x_sense, y_sense);
   }
-
 }
 
 void ParticleFilter::resample() {
 	// TODO: Resample particles with replacement with probability proportional to their weight. 
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
-  std::vector<double> weights;
-  transform(particles.begin(), particles.end(), std::back_inserter(weights), [](Particle const& p) { return p.weight; });
   default_random_engine gen;
   std::discrete_distribution<int> distribution(weights.begin(), weights.end());
   std::vector<Particle> resampled;

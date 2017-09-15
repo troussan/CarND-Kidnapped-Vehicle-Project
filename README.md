@@ -1,6 +1,6 @@
 # Overview
 This repository contains implementation of the project for the Localization course in Udacity's Self-Driving Car Nanodegree.
-This project implements a 2 dimensional particle filter in C++ and passes the requirements with just 100 particles. 
+This project implements a 2 dimensional particle filter in C++ and passes the requirements with just 500 particles. 
 
 ## Running the Code
 This project involves the Term 2 Simulator which can be downloaded [here](https://github.com/udacity/self-driving-car-sim/releases)
